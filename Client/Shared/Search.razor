@@ -1,0 +1,71 @@
+﻿@typeparam TItem
+
+<div class="row mb-3">
+    <div class="col-8">
+        <div class="input-group">
+            <input type="text"
+                   class="form-control"
+                   placeholder="Search by (Subject & Category)"
+                   @bind="SearchItem" @bind:event="oninput" @onkeyup="FilterItem"
+                   style="background-color: lightgray" />
+            @if (SearchItem.Length > 0)
+            {
+                <div class="input-group-append">
+                    <button class="btn btn-danger" @onclick="ResetSearch">
+                        <i class="oi oi-delete"></i>
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+
+
+@code {
+
+    [Parameter]
+    public TItem[]? SearchItemList { get; set; }
+    [Parameter]
+    public EventCallback<TItem[]> OnSearchLoad { get; set; }
+    [Parameter]
+    public EventCallback OnReset { get; set; }
+
+    public TItem[]? SearchItemData { get; set; }
+
+    public string SearchItem { get; set; } = "";
+
+    private async Task FilterItem()
+    {
+        //if (!string.IsNullOrEmpty(SearchItem) && SearchItem.Trim().Length != 0)
+        if (!string.IsNullOrWhiteSpace(SearchItem) )
+        {
+            SearchItemData = SearchItemList?
+                .Where(item =>
+                    GetPropValue(item, "Subject")!.ToString()!.ToLower()
+                    .Contains(SearchItem.ToLower())
+                    || GetPropValue(item, "Category")!.ToString()!.ToLower()
+                    .Contains(SearchItem.ToLower())).ToArray();
+            //SearchItemData = SearchItemList?.Where(item => (item.GetType().GetProperty("Subject").GetValue(item)).ToString().ToLower().Contains(SearchItem.ToLower())).ToArray();
+            await OnSearchLoad.InvokeAsync(SearchItemData);
+        }
+        else
+        {
+            SearchItem = "";
+            await OnReset.InvokeAsync();
+        }
+    }
+
+    private static object? GetPropValue(object obj, string propName)
+    {        
+        return obj.GetType().GetProperty(propName)?.GetValue(obj); 
+    }
+
+    private async Task ResetSearch()
+    {
+        SearchItem = "";
+        await OnReset.InvokeAsync();
+    }
+
+}
+

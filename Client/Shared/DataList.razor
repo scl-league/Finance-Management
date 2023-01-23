@@ -1,0 +1,52 @@
+﻿@typeparam TItem
+
+@inject HttpClient HttpExecutor
+
+
+
+<div class="card-body">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    @if (HeaderTemplate != null)
+                    {
+                        @HeaderTemplate
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (TItem item in Items ?? Array.Empty<TItem>())
+                {
+                    <tr>
+                        @RowTemplate(item)
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    @if (FooterTemplate != null)
+                        {
+                            @FooterTemplate(Items ?? Array.Empty<TItem>())
+                       }
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public RenderFragment? HeaderTemplate { get; set; }
+
+    [Parameter]
+    public RenderFragment<TItem>? RowTemplate { get; set; }
+
+    [Parameter]
+    public RenderFragment<TItem[]>? FooterTemplate { get; set; }
+
+    [Parameter]
+    public TItem[]? Items { get; set; }    
+
+}

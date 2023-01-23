@@ -1,0 +1,183 @@
+﻿@page "/"
+@using FinanceManagement.Client.ViewModels;
+@using FinanceManagement.Client.Services;
+@using System.Globalization;
+@using FinanceManagement.Client.Components
+
+@inject IDataService _dataService
+
+
+    
+
+<div class="container">
+    
+    <div class="row">
+        <div class="col my-5">
+            <div class="" style="width: 500px;">
+                <select @onchange="OnChangeYear" value="@selectedYears">
+                    @foreach (var value in YearList)
+                    {
+                        <option value="@value">@value</option>
+                    }
+                </select>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    @selectedYears - Earnings and Expenses
+                </div>
+                <div class="card-body">
+                    <RadzenChart>
+                        <RadzenColumnSeries Data="@yearlyExpenses" CategoryProperty="Month" ValueProperty="Amount" Title="Expenses" LineType="LineType.Dashed" />
+                        <RadzenColumnSeries Data="@yearlyEarnings" CategoryProperty="Month" ValueProperty="Amount" Title="Earnings" LineType="LineType.Dashed" />
+                        <RadzenColumnOptions Radius="5" />
+                        <RadzenValueAxis Formatter="@FormatAsUSD">
+                            <RadzenGridLines Visible="true" />
+                            <RadzenAxisTitle Text="Amount in USD" />
+                        </RadzenValueAxis>
+                    </RadzenChart>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (earnings == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row mt-4">
+        <div class="col">
+            <div class="card">
+                <div class="row" mt="3">
+                    @foreach (var quarter in quarters)
+                    {
+                        <div class="col" mx="3">
+                            <button @onclick="@(() => LoadQuarterlyReport(quarter, selectedYears))" type="button" class="btn btn-outline-info ">@quarter quarter</button>
+                        </div>
+                        @if (earnings.LastMonth.Data.Count == 0)
+                        {
+                            break;
+                        }
+                        @if (earnings.PreviousMonth.Data.Count == 0)
+                        {
+                            break;
+                        }
+                    }
+                </div>
+                <div class="card-header">
+                    Earnings - Last (3) Months
+                </div>
+
+                <div class="card-body">
+                    <div style="display: flex">
+
+                        <PieChart Data="@earnings.CurrentMonth" />
+
+                        @if (earnings.LastMonth.Data.Count != 0)
+                        {
+                            <PieChart Data="@earnings.LastMonth" />
+                        }
+
+                        @if (earnings.PreviousMonth.Data.Count != 0)
+                        {
+                            <PieChart Data="@earnings.PreviousMonth" />
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (expenses == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row mt-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">
+                    Expenses - Last 3 Months
+                </div>
+                <div class="card-body">
+                    <div style="display: flex">
+
+                        <PieChart Data="@expenses.CurrentMonth" />
+
+                        @if (expenses.LastMonth.Data.Count != 0)
+                        {
+                            <PieChart Data="@expenses.LastMonth" />
+                        }
+                        @if (expenses.PreviousMonth.Data.Count != 0)
+                        {
+                            <PieChart Data="@expenses.PreviousMonth" />
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    private string[] quarters = new[] { "first", "second", "third", "fourth" };
+    private int[] YearList = new[] { currentYear, currentYear - 1, currentYear - 2 };
+
+    private static int currentYear = DateTime.Today.Year;
+
+    private int selectedYears = currentYear;
+
+    private ICollection<string> earningColors = new List<string>() { "#ffb900", "#64dfdf", "#3700b3", "#f06292", "#fee58" };
+    private ICollection<string> expenseColors = new List<string>() { "#ba68c8", "#F4F7C5", "#93ABD3" };
+
+    private ICollection<YearlyItem>? yearlyExpenses;
+
+    private ICollection<YearlyItem>? yearlyEarnings;
+
+    private ThreeMonthsData? earnings;
+    private ThreeMonthsData? expenses;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadYearlyReport(selectedYears);
+        StateHasChanged();
+
+        await LoadQuarterlyReport();
+    }
+
+    private async Task LoadQuarterlyReport(string? quarter = default, int? year = null)
+    {
+        var quarterSelected = quarter switch { "first" => 1, "second" => 2, "third" => 3, "fourth" => 4, null => 1, "" => throw new ArgumentNullException() };
+        selectedYears = year ?? selectedYears;
+        earnings = await _dataService.LoadLast3MonthsEarnings(quarterSelected, selectedYears);
+        expenses = await _dataService.LoadLast3MonthsExpenses(quarterSelected, selectedYears);
+    }
+
+    private async Task LoadYearlyReport(int searchYear)
+    {
+        yearlyExpenses = await _dataService.LoadYearlyExpenses(searchYear);
+        yearlyEarnings = await _dataService.LoadYearlyEarnings(searchYear);
+
+        StateHasChanged();
+    }
+
+    private async void OnChangeYear(ChangeEventArgs e)
+    {
+        selectedYears = Int32.Parse(e.Value?.ToString() ?? String.Empty);
+        await LoadYearlyReport(selectedYears);
+        await LoadQuarterlyReport(null, selectedYears);
+        StateHasChanged();
+    }
+
+    string FormatAsUSD(object value)
+    {
+        return ((double)value).ToString("C0", CultureInfo.CreateSpecificCulture("en-US"));
+    }
+}

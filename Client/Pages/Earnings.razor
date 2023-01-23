@@ -1,0 +1,180 @@
+﻿@page "/earnings"
+
+@inject HttpClient Http
+@inject IJSRuntime Js
+@inject PageIndexStateProvider pageIndexState
+
+<div>
+    <Search TItem="@Earning" SearchItemList="@earnings" OnSearchLoad="@OnSearchEarnings" OnReset="@Refresh"></Search>
+</div>
+
+@if (earnings == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-lg-8 col-sm-12">
+            <div id="earnings-table" class="card">
+                <div class="card-header">
+                    Earnings
+                </div>
+
+                <DataList Items="@earnings" TItem="@Earning">
+                    <HeaderTemplate>
+                        <th @onclick="@(e => Ascending("date"))"><a>Date<span><div class="d-inline-flex float-end mt-1"><i class="bi bi-chevron-compact-down"></i></div></span></a></th>
+                        <th @onclick="@(e => Ascending("category"))"><a>Category </a></th>
+                        <th @onclick="@(e => Ascending("subject"))"><a>Subject  </a></th>
+                        <th @onclick="@(e => Ascending("amount"))">Amount </th>
+                        <th></th>
+                    </HeaderTemplate>
+                    <RowTemplate Context="data">
+                        <td> @data.Date.ToShortDateString()</td>
+                        <td> @data.Category</td>
+                        <td> @data.Subject</td>
+                        <td> @data.Amount.ToString("C2", CultureInfo.CreateSpecificCulture("en-US"))</td>
+                        <td><button type="button" class="btn btn-outline-primary btn-sm" @onclick="(() => EditEarning(data))">Edit</button></td>
+                        <td><button type="button" class="btn btn-outline-danger btn-sm" @onclick="() => OpenDeleteDialog(data)">Delete</button></td>
+                    </RowTemplate>
+                </DataList>
+
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <EarningForm OnSubmitCallback="@Refresh" earning="@_earningToDeleteOrEdit" />
+        </div>
+
+    </div>
+    <div>&nbsp;</div>
+}
+
+<div>
+    <Pagination TotalPages="@(totalPages != 0 ? totalPages : 1)"
+                PageIndex="@pageIndexState.PageIndex"
+                Radius="3"
+                OnSelectedPage="@SelectedPage">
+    </Pagination>
+</div>
+
+@if (DeleteDialogOpen)
+{
+    <ModalDialog Title="Are you sure?"
+                 Text="Do you want to delete this entry?"
+                 OnClose="@OnDeleteDialogClose"
+                 DialogType="ModalDialog.ModalDialogType.DeleteCancel">
+    </ModalDialog>
+}
+
+
+@code {
+
+    string sort = "";
+    bool assending;
+
+    //[CascadingParameter]
+    //PageIndexStateProvider pageIndexState { get; set; } = new();
+
+    private Earning[]? earnings;
+    private Earning[]? allEarnings;
+    private int itemsPerPage = 10;
+    private int totalPages = 1;
+
+    private Earning? _earningToDeleteOrEdit = new();
+
+    public bool DeleteDialogOpen { get; set; }
+
+    private Earning[] searchEarning;
+    string searchString;
+
+    protected async override Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+
+        allEarnings = await Http.GetFromJsonAsync<Earning[]>($"Earnings/{sort}");
+
+        if (allEarnings != null)
+        {
+            totalPages = (int)(allEarnings.Count() / itemsPerPage);
+
+            var skipCount = itemsPerPage * (pageIndexState.PageIndex - 1);
+            earnings = allEarnings.Skip(skipCount).Take(itemsPerPage).ToArray();
+
+        }
+
+        searchEarning = allEarnings;
+        _earningToDeleteOrEdit = new Earning { Date = DateTime.Today };
+        StateHasChanged();
+    }
+
+    private async Task OnDeleteDialogClose(bool accepted)
+    {
+        if (accepted)
+        {
+            await Http.DeleteAsync($"Earnings/{_earningToDeleteOrEdit.Id}");
+            await LoadData();
+        }
+
+        DeleteDialogOpen = false;
+        StateHasChanged();
+    }
+
+    private void OpenDeleteDialog(Earning earning)
+    {
+        DeleteDialogOpen = true;
+        _earningToDeleteOrEdit = earning;
+        StateHasChanged();
+    }
+
+    public async void Refresh()
+    {
+        await LoadData();
+    }
+
+    private void EditEarning(Earning earning)
+    {
+        _earningToDeleteOrEdit = earning;
+    }
+
+    private async Task OnSearchEarnings(Earning[]? earningSearch)
+    {
+        earnings = earningSearch;
+    }
+
+    private Earning[]? Ascending(string propName)
+    {
+        assending = !assending;
+        (string, bool)? checkCondition = (propName, assending);
+        return checkCondition switch
+        {
+            ("date", true) => earnings = earnings?.OrderBy(d => d.Date).ToArray(),
+            ("date", false) => earnings = earnings?.OrderByDescending(d => d.Date).ToArray(),
+            ("category", true) => earnings = earnings?.OrderBy(d => (int)d.Category).ToArray(),
+            ("category", false) => earnings = earnings?.OrderByDescending(d => (int)d.Category).ToArray(),
+            ("subject", true) => earnings = earnings?.OrderBy(d => d.Subject).ToArray(),
+            ("subject", false) => earnings = earnings?.OrderByDescending(d => d.Subject).ToArray(),
+            ("amount", true) => earnings = earnings?.OrderBy(d => d.Amount).ToArray(),
+            ("amount", false) => earnings = earnings?.OrderByDescending(d => d.Amount).ToArray(),
+            ("", _) => throw new ArgumentNullException()
+        };
+    }
+
+    private void SelectedPage(int selectedPageIndex)
+    {
+        if (allEarnings != null)
+        {
+            pageIndexState.PageIndex = selectedPageIndex;
+            var skipCount = itemsPerPage * (pageIndexState.PageIndex - 1);
+            earnings = allEarnings.Skip(skipCount).Take(itemsPerPage).ToArray();
+        }
+    }
+}
+
+
+
+

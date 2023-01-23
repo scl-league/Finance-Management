@@ -1,0 +1,150 @@
+﻿@page "/expenses"
+
+@inject PageIndexStateProvider pageIndexState
+@inject HttpClient Http
+
+<div>
+    <Search TItem="@Expense" SearchItemList="@expenses" OnSearchLoad="@OnSearchExpense" OnReset="@Refresh"></Search>
+</div>
+
+@if (expenses == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-lg-8">
+            <div id="earnings-table" class="card">
+                <div class="card-header">
+                    Expenses
+                </div>
+                <DataList Items="@expenses" TItem="@Expense">
+                    <HeaderTemplate>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Subject</th>
+                        <th>Amount</th>
+                        <th>&nbsp;</th>
+                    </HeaderTemplate>
+                    <RowTemplate Context="data">
+                        <td> @data.Date.ToShortDateString()</td>
+                        <td> @data.Category</td>
+                        <td> @data.Subject</td>
+                        <td> @data.Amount.ToString("C2", CultureInfo.CreateSpecificCulture("en-US"))</td>
+                        <td><button type="button" class="btn btn-info btn-sm" @onclick="(() => EditExpense(data))">Edit</button></td>
+                        <td><button type="button" class="btn btn-danger btn-sm" @onclick="() => OpenDeleteDialog(data)">Delete</button></td>
+                    </RowTemplate>
+                </DataList>
+
+            </div>
+        </div>
+        <div class="col-lg-4">
+            @*<EarningForm OnSubmitCallback="Refresh"></EarningForm>*@
+            <ExpenseForm OnSubmitCallback="@Refresh" expense="@_expenseToDelete" />
+        </div>
+    </div>
+    <div>&nbsp;</div>
+}
+
+<div>
+    <Pagination TotalPages="@(totalPages != 0 ? totalPages : 1)"
+                PageIndex="@pageIndexState.PageIndex"
+                Radius="3"
+                OnSelectedPage="@SelectedPage">
+    </Pagination>
+</div>
+
+
+@if (DeleteDialogOpen)
+{
+    <ModalDialog Title="Are you sure?"
+                 Text="Do you want to delete this entry?"
+                 OnClose="@OnDeleteDialogClose"
+                 DialogType="ModalDialog.ModalDialogType.DeleteCancel">
+    </ModalDialog>
+}
+
+
+@code {
+    //[CascadingParameter]
+    //PageIndexStateProvider pageIndexState { get; set; } = new();
+
+    private Expense[]? allExpenses;
+    private Expense[]? expenses;
+    private int itemsPerPage = 10;
+    private int totalPages = 1;
+
+    private Expense? _expenseToDelete = new();
+
+    public bool DeleteDialogOpen { get; set; }
+
+    private async Task OnDeleteDialogClose(bool accepted)
+    {
+        if (accepted)
+        {
+            await Http.DeleteAsync($"Expenses/{_expenseToDelete?.Id}");
+            await LoadData();
+        }
+
+        DeleteDialogOpen = false;
+        StateHasChanged();
+    }
+
+    private void OpenDeleteDialog(Expense? expense)
+    {
+        DeleteDialogOpen = true;
+        _expenseToDelete = expense;
+        StateHasChanged();
+    }
+
+    protected async override Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        allExpenses = await Http.GetFromJsonAsync<Expense[]>("Expenses");
+
+        if (allExpenses != null)
+        {
+            totalPages = (int)(allExpenses.Count() / itemsPerPage);
+
+            var skipCount = itemsPerPage * (pageIndexState.PageIndex - 1);
+            expenses = allExpenses.Skip(skipCount).Take(itemsPerPage).ToArray();
+        }
+        _expenseToDelete = new Expense { Date = DateTime.Today };
+        StateHasChanged();
+    }
+
+    private async Task OnSearchExpense(Expense[]? expensesSearch)
+    {
+        expenses = expensesSearch;
+    }
+
+    public async void Refresh()
+    {
+        await LoadData();
+    }
+
+    private void EditExpense(Expense expense)
+    {
+        _expenseToDelete = expense;
+    }
+
+    private void SelectedPage(int selectedPageIndex)
+    {
+        if (allExpenses != null)
+        {
+            pageIndexState.PageIndex = selectedPageIndex;
+            var skipCount = itemsPerPage * (pageIndexState.PageIndex - 1);
+            expenses = allExpenses.Skip(skipCount).Take(itemsPerPage).ToArray();
+        }
+    }
+}
+
+
+
+
+
